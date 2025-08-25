@@ -1,232 +1,136 @@
-# 📡 Notification System Backend
+# 🛠️ INSYD Backend
 
-This is the **backend** for the Notification System assignment.  
-It supports **1M+ users** with scalable design using **Node.js, Express, MongoDB, and WebSockets**.
-
----
-
-## 🌐 Live Demo
-
-- 🔗 **Frontend**: [https://insyd-frontend-git-main-kalva-vinays-projects.vercel.app/](https://insyd-frontend-git-main-kalva-vinays-projects.vercel.app/)
-- 🔗 **Backend**: [https://insyd-backend-b1hs.onrender.com](https://insyd-backend-b1hs.onrender.com)
+This is the backend service for the **INSYD Assignment Application**. It provides authentication, category management, and real-time notifications. The backend is built using **Node.js, Express.js, MongoDB**, and **WebSockets**.
 
 ---
 
 ## 🚀 Features
 
-- REST APIs for:
-  - User creation & listing
-  - Follow, Post, and Like actions
-  - Notifications (list, mark as read)
-- WebSocket server for **real-time delivery** of notifications
-- Offline support → stores notifications in MongoDB and delivers when user comes online
-- Scalable architecture (stateless API + DB + WS connections)
+* **Authentication**
+
+  * Admin login/signup
+  * User login/signup
+  * JWT-based authentication and role-based authorization
+
+* **Category Management (CRUD)**
+
+  * Create, read, update, and delete categories
+  * Admin-only access for protected routes
+
+* **Notifications**
+
+  * Real-time notifications using WebSockets (`wss://`)
+  * Notification overflow handled with queuing (see below)
+
+* **API Responses**
+
+  * Consistent JSON structure for all responses
+  * Error handling with proper HTTP status codes
+
+---
+
+## 📡 API Base URL
+
+```
+https://insyd-backend-b1hs.onrender.com
+```
+
+---
+
+## 📌 API Endpoints
+
+### Auth
+
+* `POST /auth/admin/login` → Admin login
+* `POST /auth/admin/signup` → Admin signup
+* `POST /auth/user/login` → User login
+* `POST /auth/user/signup` → User signup
+
+### Categories
+
+* `GET /categories` → Fetch all categories
+* `GET /categories/:id` → Fetch a single category
+* `POST /categories` → Create new category *(Admin only)*
+* `PUT /categories/:id` → Update category *(Admin only)*
+* `DELETE /categories/:id` → Delete category *(Admin only)*
+
+### Utility
+
+* `GET /` → Health check route
+
+---
+
+## 🔔 Notifications & Overflow Handling
+
+The backend uses **WebSockets (`wss://`)** to push real-time notifications (e.g., category updates, admin actions).
+
+To avoid **notification overflow** (when too many notifications are sent to clients at once), we implemented the following strategy:
+
+1. **Notification Queue**
+
+   * Each connected client has a queue (FIFO structure).
+   * New notifications are pushed into the queue instead of being sent blindly.
+
+2. **Rate Limiting**
+
+   * The server sends notifications at a controlled rate (e.g., one per tick).
+   * This ensures clients don’t get overwhelmed or disconnected due to floods.
+
+3. **Queue Size Limit (Overflow Protection)**
+
+   * Each client’s notification queue has a **max size** (e.g., 50).
+   * If the queue is full, the **oldest notifications are dropped** (FIFO).
+   * This prevents memory leaks and ensures users only see the most recent & relevant updates.
+
+4. **Client Acknowledgements**
+
+   * Clients can acknowledge receipt of notifications.
+   * Once acknowledged, the item is removed from the queue.
+
+✅ This ensures **scalability**, prevents server crashes from spamming, and keeps the user experience smooth.
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Node.js** + **Express.js**
-- **MongoDB** + **Mongoose**
-- **WebSocket** (`ws` library)
-- **Nodemon** for dev auto-reload
+* **Backend Framework:** Node.js, Express.js
+* **Database:** MongoDB (Mongoose ORM)
+* **Authentication:** JWT
+* **Real-Time:** WebSocket (`wss://`)
+* **Deployment:** Render
 
 ---
 
 ## 📂 Project Structure
 
 ```
-
 backend/
-│
-├── server.js           # Entry point
-├── config/             # DB connection
-│   └── db.js
-├── controllers/        # Business logic
-│   ├── userController.js
-│   ├── followController.js
-│   ├── eventController.js
-│   └── notificationController.js
-├── models/             # Mongoose schemas
-│   ├── User.js
-│   ├── Follow\.js
-│   └── Notification.js
-├── routes/             # API routes
-│   ├── userRoutes.js
-│   ├── followRoutes.js
-│   ├── eventRoutes.js
-│   └── notificationRoutes.js
-└── websocket/          # WebSocket server
-└── wsServer.js
-
-````
+│── config/         # DB & WebSocket config
+│── controllers/    # Route handlers
+│── middlewares/    # Auth & error handling
+│── models/         # Mongoose schemas
+│── routes/         # API routes
+│── utils/          # Helpers (e.g., notification queue)
+│── server.js       # Entry point
+│── README.md       # Documentation
+```
 
 ---
 
-## ⚙️ Installation
+## ⚡ Running Locally
 
 ```bash
-# Clone repo
-git clone <your-repo-url>
+# Clone repository
+git clone <repo-url>
 cd backend
 
 # Install dependencies
 npm install
 
-# Start dev server with nodemon
-npm run dev
+# Add .env file
+PORT=5000
+MONGO_URI=<your-mongo-uri>
+JWT_SECRET=<your-secret>
 
-# OR start normally
+# Run server
 npm start
-````
-
----
-
-## 🌐 API Endpoints
-
-### Users
-
-* `POST /api/users` → create user
-* `GET /api/users` → list users
-
-### Follow
-
-* `POST /api/follows` → follow a user (sends notification)
-
-### Events
-
-* `POST /api/events/post` → create post (notify followers)
-* `POST /api/events/like` → like post (notify owner)
-
-### Notifications
-
-* `GET /api/notifications/:userId?limit=20` → fetch notifications
-* `PATCH /api/notifications/:id/read` → mark as read
-
-### WebSocket
-
-* Connect: `ws://<your-domain>/ws?userId=<id>`
-* Live notifications delivered in real-time
-
----
-
-## 🧪 Testing
-
-Use **Postman** collection or the React frontend to test:
-
-* Create users, follow, post, like
-* Switch between users and see real-time notifications
-
----
-
-# 📂 Frontend: `README.md`
-
-```markdown
-# 💻 Notification System Frontend
-
-This is the **frontend** for the Notification System assignment, built with **React.js (CRA)**.  
-It connects to the backend APIs + WebSocket to show **real-time notifications**.
-
----
-
-## 🌐 Live Demo
-
-- 🔗 **Frontend**: [https://insyd-frontend-git-main-kalva-vinays-projects.vercel.app/](https://insyd-frontend-git-main-kalva-vinays-projects.vercel.app/)
-- 🔗 **Backend**: [https://insyd-backend-b1hs.onrender.com](https://insyd-backend-b1hs.onrender.com)
-
----
-
-## 🚀 Features
-
-- Create and switch between users (simulate login)
-- Follow users (target gets notification)
-- Post (followers notified)
-- Like (owner notified)
-- Notifications panel:
-  - Shows real-time (via WebSocket)
-  - Loads missed notifications (via API)
-  - Mark as read
-
----
-
-## 🛠️ Tech Stack
-
-- **React.js (Create React App)**
-- **Fetch API** for REST
-- **WebSocket API** for real-time
-- **CSS only** (dark theme, clean design)
-
----
-
-## 📂 Project Structure
-
-```
-
-frontend/
-│
-├── src/
-│   ├── index.js
-│   ├── App.js
-│   ├── api.js
-│   ├── styles.css
-│   └── components/
-│       ├── Users.js
-│       ├── Follow\.js
-│       ├── Post.js
-│       ├── Like.js
-│       └── Notifications.js
-
-````
-
----
-
-## ⚙️ Installation
-
-```bash
-# Clone repo
-git clone <your-repo-url>
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start development server
-npm start
-````
-
-Frontend will run on:
-👉 `http://localhost:3000`
-Backend should run on:
-👉 `http://localhost:5000`
-
----
-
-## 🖥️ Usage
-
-1. Start backend first (`npm run dev` in backend)
-2. Start frontend (`npm start`)
-3. In browser:
-
-   * Create users (Alice, Bob)
-   * Pick a current user (e.g., Alice)
-   * Open another tab → pick Bob
-   * Try follow/post/like → notifications appear in real-time
-
----
-
-## 📸 UI Overview
-
-* **Users card** → create + switch users
-* **Follow card** → follow another user
-* **Post card** → notify followers
-* **Like card** → notify owner
-* **Notifications panel** → see new + stored notifications
-
----
-
-## ✅ Assignment Fit
-
-* React.js **only** (no Vite/Next.js)
-* Focus on **notification system**, no auth/extra features
-* Real-time + offline handling
-* Simple, modular, assignment-ready design
