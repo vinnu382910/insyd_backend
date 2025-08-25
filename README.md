@@ -1,103 +1,40 @@
-# 🛠️ INSYD Backend
+# 📡 Notification System Backend (Scalable for 1M+ Users)
 
-This is the backend service for the **INSYD Assignment Application**. It provides authentication, category management, and real-time notifications. The backend is built using **Node.js, Express.js, MongoDB**, and **WebSockets**.
+This is the backend for the In-App Notification System assignment.
+
+It is designed to handle:
+
+* High concurrency (1 million+ users)
+* Real-time notifications using WebSocket
+* Offline notification delivery
+* Efficient storage and retrieval
+* Notification overflow control
 
 ---
 
 ## 🚀 Features
 
-* **Authentication**
+* Create and manage users
+* Follow other users
+* Generate notifications for:
 
-  * Admin login/signup
-  * User login/signup
-  * JWT-based authentication and role-based authorization
-
-* **Category Management (CRUD)**
-
-  * Create, read, update, and delete categories
-  * Admin-only access for protected routes
-
-* **Notifications**
-
-  * Real-time notifications using WebSockets (`wss://`)
-  * Notification overflow handled with queuing (see below)
-
-* **API Responses**
-
-  * Consistent JSON structure for all responses
-  * Error handling with proper HTTP status codes
-
----
-
-## 📡 API Base URL
-
-```
-https://insyd-backend-b1hs.onrender.com
-```
-
----
-
-## 📌 API Endpoints
-
-### Auth
-
-* `POST /auth/admin/login` → Admin login
-* `POST /auth/admin/signup` → Admin signup
-* `POST /auth/user/login` → User login
-* `POST /auth/user/signup` → User signup
-
-### Categories
-
-* `GET /categories` → Fetch all categories
-* `GET /categories/:id` → Fetch a single category
-* `POST /categories` → Create new category *(Admin only)*
-* `PUT /categories/:id` → Update category *(Admin only)*
-* `DELETE /categories/:id` → Delete category *(Admin only)*
-
-### Utility
-
-* `GET /` → Health check route
-
----
-
-## 🔔 Notifications & Overflow Handling
-
-The backend uses **WebSockets (`wss://`)** to push real-time notifications (e.g., category updates, admin actions).
-
-To avoid **notification overflow** (when too many notifications are sent to clients at once), we implemented the following strategy:
-
-1. **Notification Queue**
-
-   * Each connected client has a queue (FIFO structure).
-   * New notifications are pushed into the queue instead of being sent blindly.
-
-2. **Rate Limiting**
-
-   * The server sends notifications at a controlled rate (e.g., one per tick).
-   * This ensures clients don’t get overwhelmed or disconnected due to floods.
-
-3. **Queue Size Limit (Overflow Protection)**
-
-   * Each client’s notification queue has a **max size** (e.g., 50).
-   * If the queue is full, the **oldest notifications are dropped** (FIFO).
-   * This prevents memory leaks and ensures users only see the most recent & relevant updates.
-
-4. **Client Acknowledgements**
-
-   * Clients can acknowledge receipt of notifications.
-   * Once acknowledged, the item is removed from the queue.
-
-✅ This ensures **scalability**, prevents server crashes from spamming, and keeps the user experience smooth.
+  * Follow events
+  * Post events
+  * Like events
+* Real-time delivery using WebSockets
+* Stores unread notifications in MongoDB
+* Clients fetch missed notifications when online
+* Mark notifications as read
+* Prevent overflow: notification cap + indexing
 
 ---
 
 ## 🛠️ Tech Stack
 
-* **Backend Framework:** Node.js, Express.js
-* **Database:** MongoDB (Mongoose ORM)
-* **Authentication:** JWT
-* **Real-Time:** WebSocket (`wss://`)
-* **Deployment:** Render
+* Node.js + Express
+* MongoDB + Mongoose
+* WebSocket (ws package)
+* Nodemon (for dev hot-reload)
 
 ---
 
@@ -105,32 +42,138 @@ To avoid **notification overflow** (when too many notifications are sent to clie
 
 ```
 backend/
-│── config/         # DB & WebSocket config
-│── controllers/    # Route handlers
-│── middlewares/    # Auth & error handling
-│── models/         # Mongoose schemas
-│── routes/         # API routes
-│── utils/          # Helpers (e.g., notification queue)
-│── server.js       # Entry point
-│── README.md       # Documentation
+│
+├── server.js                   # App entry point
+├── config/
+│   └── db.js                   # MongoDB connection
+├── controllers/
+│   ├── userController.js
+│   ├── followController.js
+│   ├── eventController.js
+│   └── notificationController.js
+├── models/
+│   ├── User.js
+│   ├── Follow.js
+│   └── Notification.js
+├── routes/
+│   ├── userRoutes.js
+│   ├── followRoutes.js
+│   ├── eventRoutes.js
+│   └── notificationRoutes.js
+└── websocket/
+    └── wsServer.js             # WebSocket handling
 ```
 
 ---
 
-## ⚡ Running Locally
+## ⚙️ Setup Instructions
+
+1. Install dependencies:
 
 ```bash
-# Clone repository
-git clone <repo-url>
 cd backend
-
-# Install dependencies
 npm install
+```
 
-# Add .env file
+2. Create a .env file:
+
+```
 PORT=5000
-MONGO_URI=<your-mongo-uri>
-JWT_SECRET=<your-secret>
+MONGO_URI=mongodb://localhost:27017/notification_db
+```
 
-# Run server
-npm start
+3. Start development server:
+
+```bash
+npm run dev
+```
+
+---
+
+## 🌐 API Endpoints
+
+### Users
+
+* POST /api/users → create a user
+* GET /api/users → list all users
+
+### Follow
+
+* POST /api/follows → follow a user & notify them
+
+### Events
+
+* POST /api/events/post → notify followers
+* POST /api/events/like → notify post owner
+
+### Notifications
+
+* GET /api/notifications/\:userId?limit=n → get latest notifications
+* PATCH /api/notifications/\:id/read → mark as read
+
+---
+
+## 🔔 Notification Delivery Flow
+
+1. Events (Follow, Post, Like) trigger creation of a Notification in MongoDB.
+2. If recipient is online (active WebSocket), notification is sent in real-time.
+3. If offline, notification remains in DB to be fetched later.
+4. Clients fetch missed notifications via REST API after reconnecting.
+
+---
+
+## 📦 Notification Overflow Handling
+
+To prevent overload for high-volume users:
+
+* A user can only have a limited number of stored notifications (e.g. last 100 or 200).
+* Notifications are indexed by createdAt and userId for fast retrieval and purging.
+* On insertion, the backend:
+
+  * Inserts the new notification
+  * Trims older ones using a cap (e.g. using MongoDB’s \$push + \$slice or manual deletion)
+
+This ensures:
+
+* The app never stores unlimited notifications per user
+* Database size is controlled and predictable
+* Query performance remains fast even with millions of notifications
+
+Example logic (pseudo):
+
+On new notification:
+
+* Store it in MongoDB
+* Run cleanup:
+  Delete oldest notifications where userId = receiver and count > 100
+
+This approach was explicitly requested in the assignment (refer to “Design a notification system that supports real-time delivery + scale + overflow management”).
+
+---
+
+## 🧪 Testing
+
+Use Postman or the frontend (React) to:
+
+* Create users
+* Follow someone → they receive notification
+* Post content → followers notified
+* Like a post → owner notified
+* Open WS connection → see real-time updates
+* Reload → see stored notifications
+
+---
+
+## 🔄 WebSocket Connection
+
+To receive notifications in real-time:
+
+* Connect to:
+  ws\://localhost:5000/ws?userId=\<user\_id>
+
+Server will:
+
+* Track connection
+* Send notifications in real-time when available
+
+If the user is not connected, notifications are safely stored in MongoDB for later fetch.
